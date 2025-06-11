@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Collector</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="ui-overlay">
+            <div class="score-panel">
+                <div class="score">★ <span id="score">0</span></div>
+                <div class="stats">Level: <span id="level">1</span></div>
+            </div>
+            <div class="stats-panel">
+                <div class="stats">Lives: <span id="lives">3</span> ❤️</div>
+                <div class="stats">Time: <span id="time">0</span>s</div>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div class="main-menu" id="mainMenu">
+            <h1>STAR COLLECTOR</h1>
+            <button class="menu-btn" onclick="startGame()">Start Game</button>
+            <button class="menu-btn" onclick="showInstructions()">How to Play</button>
+            <div id="instructions" style="display: none; margin-top: 20px; text-align: left;">
+                <h3>How to Play:</h3>
+                <p>- Use WASD or Arrow Keys to move</p>
+                <p>- Collect stars (⭐) to earn points</p>
+                <p>- Avoid enemies (💀) or you'll lose a life</p>
+                <p>- Collect power-ups for special abilities:</p>
+                <p>  🛡️ Shield - Temporary protection</p>
+                <p>  🚀 Speed - Move faster for a while</p>
+                <p>- Game ends when you lose all 3 lives</p>
+                <button class="menu-btn" onclick="hideInstructions()" style="margin-top: 15px;">Back to Menu</button>
+            </div>
+        </div>
+        
+        <div class="game-over" id="gameOver">
+            <h2>GAME OVER!</h2>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <p>Stars Collected: <span id="starsCollected">0</span></p>
+            <button class="restart-btn" onclick="restartGame()">Play Again</button>
+            <button class="restart-btn" onclick="returnToMenu()">Main Menu</button>
+        </div>
+        
+        <div class="controls">
+            <strong>Controls:</strong><br>
+            W A S D - Move<br>
+            Collect ⭐ stars<br>
+            Avoid 💀 enemies
+        </div>
+        
+        <div class="buff-indicator" id="buffIndicator">
+            <div class="buff-item" id="shieldBuff" style="display: none;">
+                <div class="buff-icon">🛡️</div>
+                <div class="buff-timer"><div class="buff-progress" id="shieldTimer"></div></div>
+            </div>
+            <div class="buff-item" id="speedBuff" style="display: none;">
+                <div class="buff-icon">🚀</div>
+                <div class="buff-timer"><div class="buff-progress" id="speedTimer"></div></div>
+            </div>
+        </div>
+
+        <div class="mobile-ui" id="mobileUI">
+            <div class="mobile-score-panel">
+                <div>★ <span id="mobileScore">0</span></div>
+                <div>Level: <span id="mobileLevel">1</span></div>
+                <div>Lives: <span id="mobileLives">3</span> ❤️</div>
+                <div>Time: <span id="mobileTime">0</span>s</div>
+            </div>
+        </div>
+
+        <div class="virtual-joystick" id="virtualJoystick">
+            <div class="joystick-knob" id="joystickKnob"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
