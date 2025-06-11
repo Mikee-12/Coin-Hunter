@@ -2,6 +2,44 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+const sounds = {
+  collect: new Audio('assets/collect.mp3'),
+  Buff: new Audio('assets/collectBuff.mp3'),
+  Death:new Audio('assets/death.mp3')
+};
+const soundtrack = new Audio('assets/soundtrackMenu.mp3');
+soundtrack.loop = true;
+
+// Handle tab visibility changes
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        // Tab became hidden
+        if (gameState.gameStarted && !gameState.gameOver) {
+            pauseGame();
+        }
+        isTabVisible = false;
+    } else {
+        // Tab became visible
+        if (gameState.gameStarted && !gameState.gameOver && gameState.paused) {
+            resumeGame();
+        }
+        isTabVisible = true;
+    }
+});
+
+// Window focus/blur events as fallback
+window.addEventListener('blur', function() {
+    if (gameState.gameStarted && !gameState.gameOver && !gameState.paused) {
+        pauseGame();
+    }
+});
+
+window.addEventListener('focus', function() {
+    if (gameState.gameStarted && !gameState.gameOver && gameState.paused) {
+        resumeGame();
+    }
+});
+
 // Mobile controls
 let mobileControls = {
     joystick: {
@@ -97,16 +135,22 @@ let gameState = {
     gameOver: false,
     gameStarted: false,
     startTime: Date.now(),
+    paused: false,
+    pausedTime: 0,
+    lastFrameTime: 0,
     stars: [],
     enemies: [],
     particles: [],
     powerUps: [],
     activeBuffs: {
-        shield: { active: false, endTime: 0 },
-        speed: { active: false, endTime: 0 }
+        shield: { active: false, endTime: 0, pausedRemaining: 0 },
+        speed: { active: false, endTime: 0, pausedRemaining: 0 }
     },
     shieldEffect: null
 };
+
+let isTabVisible = true;
+let audioWasPaused = false;
 
 // Player object
 const player = {
@@ -281,6 +325,64 @@ function updateBuffs() {
     }
 }
 
+// Pause game function
+function pauseGame() {
+    if (gameState.paused) return;
+    
+    gameState.paused = true;
+    gameState.pausedTime = Date.now();
+    
+    // Pause soundtrack
+    if (!soundtrack.paused) {
+        soundtrack.pause();
+        audioWasPaused = false;
+    } else {
+        audioWasPaused = true;
+    }
+    
+    // Save remaining buff times
+    const now = Date.now();
+    Object.keys(gameState.activeBuffs).forEach(buffType => {
+        const buff = gameState.activeBuffs[buffType];
+        if (buff.active) {
+            buff.pausedRemaining = Math.max(0, buff.endTime - now);
+        }
+    });
+    
+    console.log('Game paused');
+}
+
+// Resume game function
+function resumeGame() {
+    if (!gameState.paused) return;
+    
+    const pauseDuration = Date.now() - gameState.pausedTime;
+    
+    // Adjust start time to account for pause
+    gameState.startTime += pauseDuration;
+    
+    // Resume soundtrack if it was playing
+    if (!audioWasPaused && soundtrack.paused) {
+        soundtrack.play().catch(e => console.log('Resume audio failed:', e));
+    }
+    
+    // Restore buff timers
+    const now = Date.now();
+    Object.keys(gameState.activeBuffs).forEach(buffType => {
+        const buff = gameState.activeBuffs[buffType];
+        if (buff.active && buff.pausedRemaining > 0) {
+            buff.endTime = now + buff.pausedRemaining;
+            buff.pausedRemaining = 0;
+        }
+    });
+    
+    // Reset frame timing to prevent FPS jumps
+    gameState.lastFrameTime = now;
+    
+    gameState.paused = false;
+    console.log('Game resumed');
+}
+
 // Update player
 function updatePlayer() {
     let dx = 0, dy = 0;
@@ -352,9 +454,11 @@ function updateEnemies() {
 }
 
 // Check collisions
+// Fixed collision detection function
 function checkCollisions() {
-    // Player-Star collisions
-    gameState.stars.forEach((star, index) => {
+    // Player-Star collisions (sudah benar)
+    for (let i = gameState.stars.length - 1; i >= 0; i--) {
+        const star = gameState.stars[i];
         const dx = player.x - star.x;
         const dy = player.y - star.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -362,24 +466,32 @@ function checkCollisions() {
         if (distance < player.size + star.size && !star.collected) {
             star.collected = true;
             gameState.score += 10;
-            
+
             // Create collection particles
-            for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
                 gameState.particles.push(createParticle(star.x, star.y, star.color, 4));
             }
             
             // Remove collected star
-            gameState.stars.splice(index, 1);
+            gameState.stars.splice(i, 1);
             
             // Level up logic
             if (gameState.score % 100 === 0) {
                 gameState.level++;
             }
+            
+            // Play collection sound
+            if (sounds.collect) {
+                sounds.collect.currentTime = 0;
+                sounds.collect.volume = 0.8;
+                sounds.collect.play().catch(e => console.log('Audio play failed:', e));
+            }
         }
-    });
-    
-    // Player-PowerUp collisions
-    gameState.powerUps.forEach((powerUp, index) => {
+    }
+
+    // Player-PowerUp collisions (DIPINDAHKAN KE DALAM FUNGSI)
+    for (let i = gameState.powerUps.length - 1; i >= 0; i--) {
+        const powerUp = gameState.powerUps[i];
         const dx = player.x - powerUp.x;
         const dy = player.y - powerUp.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -388,7 +500,7 @@ function checkCollisions() {
             powerUp.collected = true;
             
             // Create collection particles
-            for (let i = 0; i < 12; i++) {
+            for (let j = 0; j < 12; j++) {
                 gameState.particles.push(createParticle(powerUp.x, powerUp.y, powerUp.color, 5));
             }
             
@@ -402,37 +514,55 @@ function checkCollisions() {
                     break;
             }
             
-            // Remove collected power-up
-            gameState.powerUps.splice(index, 1);
-        }
-    });
-    
-    // Player-Enemy collisions
-    if (!gameState.activeBuffs.shield.active) { // Only check if no shield
-        gameState.enemies.forEach((enemy, index) => {
-            const dx = player.x - enemy.x;
-            const dy = player.y - enemy.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < player.size + enemy.size) {
-                gameState.lives--;
-                
-                // Create damage particles
-                for (let i = 0; i < 12; i++) {
-                    gameState.particles.push(createParticle(player.x, player.y, '#ff0000', 3));
-                }
-                
-                // Remove enemy and reset player position
-                gameState.enemies.splice(index, 1);
-                player.x = canvas.width / 2;
-                player.y = canvas.height / 2;
-                
-                if (gameState.lives <= 0) {
-                    gameState.gameOver = true;
-                }
+            // Play collectBuff sound
+            if (sounds.Buff) {
+                sounds.Buff.currentTime = 0;
+                sounds.Buff.volume = 0.6;
+                sounds.Buff.play().catch(e => console.log('Buff audio play failed:', e));
             }
-        });
+            
+            // Remove collected power-up
+            gameState.powerUps.splice(i, 1);
+        }
     }
+    
+// Player-Enemy collisions (Clean version with death sound)
+if (!gameState.activeBuffs.shield.active) { // Only check if no shield
+    for (let i = gameState.enemies.length - 1; i >= 0; i--) {
+        const enemy = gameState.enemies[i];
+        const dx = player.x - enemy.x;
+        const dy = player.y - enemy.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < player.size + enemy.size) {
+            gameState.lives--;
+            
+            // Play death sound
+            if (sounds.Death) {
+                sounds.Death.currentTime = 0; // Reset audio ke awal
+                sounds.Death.volume = 0.7; // Atur volume (0.0 - 1.0)
+                sounds.Death.play().catch(e => console.log('Death audio play failed:', e));
+            }
+            
+            // Create damage particles
+            for (let j = 0; j < 12; j++) {
+                gameState.particles.push(createParticle(player.x, player.y, '#ff0000', 3));
+            }
+            
+            // Remove enemy and reset player position
+            gameState.enemies.splice(i, 1);
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            
+            if (gameState.lives <= 0) {
+                gameState.gameOver = true;
+            }
+            
+            // Break to avoid multiple collisions in one frame
+            break;
+        }
+    }
+}
 }
 
 // Spawn entities
@@ -641,6 +771,12 @@ function gameLoop() {
         return;
     }
     
+    // Check if game is paused
+    if (gameState.paused) {
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+    
     // Clear canvas with subtle trail effect
     ctx.fillStyle = 'rgba(10, 10, 46, 0.1)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -673,13 +809,16 @@ function restartGame() {
         gameOver: false,
         gameStarted: true,
         startTime: Date.now(),
+        paused: false,
+        pausedTime: 0,
+        lastFrameTime: 0,
         stars: [],
         enemies: [],
         particles: [],
         powerUps: [],
         activeBuffs: {
-            shield: { active: false, endTime: 0 },
-            speed: { active: false, endTime: 0 }
+            shield: { active: false, endTime: 0, pausedRemaining: 0 },
+            speed: { active: false, endTime: 0, pausedRemaining: 0 }
         },
         shieldEffect: null
     };
@@ -708,6 +847,9 @@ function restartGame() {
 
 // Start game from menu
 function startGame() {
+    soundtrack.currentTime = 0;
+    soundtrack.play();
+    soundtrack.volume = 0.1;
     const mainMenuEl = document.getElementById('mainMenu');
     const instructionsEl = document.getElementById('instructions');
     
